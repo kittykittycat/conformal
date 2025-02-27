@@ -1,7 +1,36 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.special as sp
+from copy import copy
 
 from nicegui import events, ui
+
+functions = {"²" : np.square,
+             "sin" : np.sin,
+             "cos" : np.cos,
+             "tan" : np.tan,
+             "arcsin" : np.asin,
+             "arccos" : np.acos,
+             "arctan" : np.atan,
+             "sinh" : np.sinh,
+             "cosh" : np.cosh,
+             "tanh" : np.tanh,
+             "arcsinh" : np.asinh,
+             "arccosh" : np.acosh,
+             "arctanh" : np.atanh,
+             "exp" : np.exp,
+             "ln" : np.log,
+             "sinc" : sp.sinc,
+             "1/" : np.reciprocal,
+             "erf" : sp.erf,
+             "Γ" : sp.gamma,
+             "digamma" : sp.psi,
+             "W" : sp.lambertw,
+             "exp1" : sp.exp1,
+             "Wright Omega" : sp.wrightomega,
+             # "" : sp.,
+             # "" : sp.,
+             "√" : np.sqrt}
 
 def show(event: events.ValueChangeEventArguments):
     name = type(event.sender).__name__
@@ -45,7 +74,7 @@ class renderer:
 
     def update(self, val):
         val = float(val)
-        val = val ** (8 / (self.num_zeros ** 2 + self.num_poles ** 2 + self.radius ** 2))
+        #val = val ** (8 / (self.num_zeros ** 2 + self.num_poles ** 2 + self.radius ** 2))
 
         # convex combo of preimage and image
         self.image = self.trafo(self.grid)
@@ -67,22 +96,50 @@ class rendererGUI:
 
     def __init__(self, renderer):
         self.rend = renderer
+        self.available_trafos = copy(functions)
+        self.available_trafos["rational"] = copy(rend.trafo)
+        self.trafo_choice = "rational"
+        self.spacing = "equidistant"
         self.alpha = 0
         self.init_plot()
+
+        with ui.row().classes('w-full no-wrap'):
+            main_slider = ui.slider(min=0, max=self.slider_res, on_change=self.update_plot)
+            main_slider.bind_value(self, "alpha")
+            main_slider.tooltip("warp amount")
+
+        with ((((ui.row())))):
+            select_trafo = ui.select(list(self.available_trafos.keys()),
+                                     value="rational",
+                                     on_change=self.change_trafo)
+            select_trafo.bind_value(self, "trafo_choice")
+            select_trafo.tooltip("warp function")
+            #select_trafo.props('popup-content-class="max-w-[200px]"')
+
+            with ui.row().bind_visibility_from(self, "trafo_choice", backward=lambda x: x=="rational"):
+                ui.label("pole/zero spacing")
+                radio_spacing = ui.radio(["equidistant", "random"])
+                radio_spacing.props('inline')
+                radio_spacing.bind_value(self, "spacing")
+
         ui.run()
 
     def init_plot(self):
-        self.main_plot = ui.matplotlib(figsize=(6, 6)).figure
-        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05)
+        self.main_plot = ui.matplotlib(figsize=(5, 5)).figure
         ax = self.main_plot.gca()
-        obj = self.rend
-        self.pl1 = ax.plot(obj.hx, obj.hy, "b", dashes=[6, 2], linewidth=0.6)
-        self.pl2 = ax.plot(obj.vx, obj.vy, "r", dashes=[2, 1], linewidth=0.6)
-
-        main_slider = ui.slider(min=0, max=self.slider_res, on_change=self.update_plot)
-        main_slider.bind_value(self, "alpha")
-        slice_pos = ui.label()
-        slice_pos.bind_text_from(main_slider, 'value')
+        self.pl1 = ax.plot(self.rend.hx, self.rend.hy, "b", dashes=[6, 2], linewidth=0.6)
+        self.pl2 = ax.plot(self.rend.vx, self.rend.vy, "r", dashes=[2, 1], linewidth=0.6)
+        ax.axis("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        plt.subplots_adjust(left=0.01,
+                            right=0.99,
+                            top=0.99,
+                            bottom=0.01,
+                            hspace = 0,
+                            wspace = 0)
+        plt.margins(0, 0)
+        plt.tight_layout()
 
     def update_plot(self):
         self.rend.update(self.alpha/self.slider_res)
@@ -94,6 +151,10 @@ class rendererGUI:
             for k, line in enumerate(self.pl2):
                 line.set_data(self.rend.vx[k],
                               self.rend.vy[k])
+
+    def change_trafo(self):
+        self.rend.trafo = self.available_trafos[self.trafo_choice]
+        self.update_plot()
 
 
 rend = renderer()
