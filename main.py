@@ -42,6 +42,8 @@ class renderer:
         self.num_zeros = 4
         self.num_poles = 3
         self.radius = 4
+        self.domain_scale = 1+0j
+        self.domain_offset = 0+0j
 
         gridx, gridy = np.mgrid[-1:1:self.res*1j, -1:1:self.res*1j]
         self.grid = gridx + 1j*gridy
@@ -77,7 +79,7 @@ class renderer:
         #val = val ** (8 / (self.num_zeros ** 2 + self.num_poles ** 2 + self.radius ** 2))
 
         # convex combo of preimage and image
-        self.image = self.trafo(self.grid)
+        self.image = self.trafo((self.grid+self.domain_offset)*self.domain_scale)
         img = (1 - val) * self.grid + val * self.image
 
         # scale such that we use the [-1,1]x[-i,i] square
@@ -103,11 +105,6 @@ class rendererGUI:
         self.alpha = 0
         self.init_plot()
 
-        with ui.row().classes('w-full no-wrap'):
-            main_slider = ui.slider(min=0, max=self.slider_res, on_change=self.update_plot)
-            main_slider.bind_value(self, "alpha")
-            main_slider.tooltip("warp amount")
-
         with ((((ui.row())))):
             select_trafo = ui.select(list(self.available_trafos.keys()),
                                      value="rational",
@@ -121,6 +118,45 @@ class rendererGUI:
                 radio_spacing = ui.radio(["equidistant", "random"])
                 radio_spacing.props('inline')
                 radio_spacing.bind_value(self, "spacing")
+
+        with ui.row().classes('w-full no-wrap') as row:
+            row.tooltip("domain offset")
+            slider_offset_real = ui.slider(min=-5,
+                                           max=5,
+                                           step=1/self.slider_res,
+                                           value=0,
+                                           on_change=self.domain_change)
+            slider_offset_imag = ui.slider(min=-5,
+                                           max=5,
+                                           step=1/self.slider_res,
+                                           value=0,
+                                           on_change=self.domain_change)
+
+        with ui.row().classes('w-full no-wrap') as row:
+            row.tooltip("domain scale")
+            slider_scale_real = ui.slider(min=0,
+                                          max=5,
+                                          step=1/self.slider_res,
+                                          value=1,
+                                          on_change=self.domain_change)
+            slider_scale_imag = ui.slider(min=0,
+                                          max=5,
+                                          step=1/self.slider_res,
+                                          value=0,
+                                          on_change=self.domain_change)
+
+        with ui.row().classes('w-full no-wrap'):
+            main_slider = ui.slider(min=0,
+                                    max=1,
+                                    step=1/self.slider_res,
+                                    on_change=self.update_plot)
+            main_slider.bind_value(self, "alpha")
+            main_slider.tooltip("warp amount")
+
+        self.slider_offset_real = slider_offset_real
+        self.slider_offset_imag = slider_offset_imag
+        self.slider_scale_real  = slider_scale_real
+        self.slider_scale_imag  = slider_scale_imag
 
         ui.run()
 
@@ -142,7 +178,7 @@ class rendererGUI:
         plt.tight_layout()
 
     def update_plot(self):
-        self.rend.update(self.alpha/self.slider_res)
+        self.rend.update(self.alpha)
         with self.main_plot:
             for k, line in enumerate(self.pl1):
                 line.set_data(self.rend.hx[k],
@@ -154,6 +190,12 @@ class rendererGUI:
 
     def change_trafo(self):
         self.rend.trafo = self.available_trafos[self.trafo_choice]
+        self.update_plot()
+
+    def domain_change(self):
+        self.rend.domain_offset = self.slider_offset_real.value + 1j*self.slider_offset_imag.value
+        self.rend.domain_scale  = self.slider_scale_real.value + 1j*self.slider_scale_imag.value
+
         self.update_plot()
 
 
